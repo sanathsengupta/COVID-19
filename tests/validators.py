@@ -3,6 +3,7 @@
 import csv
 import re
 from datetime import date, datetime
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -48,24 +49,30 @@ def read_report(path):
     names, or contains rows whose field count differs from the header.
     """
     with open(path, newline="", encoding="utf-8-sig") as fh:
-        reader = csv.reader(fh)
+        reader = csv.reader(fh, strict=True)
         try:
             header = [h.strip() for h in next(reader)]
         except StopIteration:
             raise ValueError(f"{path}: file is empty") from None
+        except csv.Error as exc:
+            raise ValueError(f"{path}:{reader.line_num}: malformed CSV: {exc}") from None
         if any(not h for h in header):
             raise ValueError(f"{path}: header contains a blank column name")
         if len(set(header)) != len(header):
             raise ValueError(f"{path}: header contains duplicate column names")
         rows = []
-        for line_no, fields in enumerate(reader, start=2):
-            if not fields:
-                continue
-            if len(fields) != len(header):
-                raise ValueError(
-                    f"{path}:{line_no}: expected {len(header)} fields, got {len(fields)}"
-                )
-            rows.append(dict(zip(header, fields)))
+        try:
+            for fields in reader:
+                if not fields:
+                    continue
+                if len(fields) != len(header):
+                    raise ValueError(
+                        f"{path}:{reader.line_num}: expected {len(header)} fields, "
+                        f"got {len(fields)}"
+                    )
+                rows.append(dict(zip(header, fields)))
+        except csv.Error as exc:
+            raise ValueError(f"{path}:{reader.line_num}: malformed CSV: {exc}") from None
     return header, rows
 
 
@@ -84,12 +91,12 @@ def parse_count(value):
     if text == "":
         return None
     try:
-        number = float(text)
-    except ValueError:
+        number = Decimal(text)
+    except InvalidOperation:
         raise ValueError(f"{value!r} is not numeric") from None
-    if number != number or number in (float("inf"), float("-inf")):
+    if not number.is_finite():
         raise ValueError(f"{value!r} is not a finite number")
-    if not number.is_integer():
+    if number != number.to_integral_value():
         raise ValueError(f"{value!r} is not a whole number")
     if number < 0:
         raise ValueError(f"{value!r} is negative")

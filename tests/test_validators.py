@@ -72,7 +72,17 @@ class TestParseFilenameDate:
 class TestParseCount:
     @pytest.mark.parametrize(
         "value, expected",
-        [("0", 0), ("1", 1), ("67798", 67798), (" 42 ", 42), ("5.0", 5), ("1e3", 1000)],
+        [
+            ("0", 0),
+            ("1", 1),
+            ("67798", 67798),
+            (" 42 ", 42),
+            ("5.0", 5),
+            ("1e3", 1000),
+            ("-0", 0),
+            ("9007199254740993", 9007199254740993),
+            ("12345678901234567890", 12345678901234567890),
+        ],
     )
     def test_valid(self, value, expected):
         assert parse_count(value) == expected
@@ -86,11 +96,14 @@ class TestParseCount:
         [
             ("-1", "negative"),
             ("-0.5", "whole"),
+            ("-1e-30", "whole"),
+            ("9007199254740993.5", "whole"),
             ("1.5", "whole"),
             ("abc", "numeric"),
             ("1,000", "numeric"),
             ("nan", "finite"),
             ("inf", "finite"),
+            ("-Infinity", "finite"),
         ],
     )
     def test_invalid(self, value, message):
@@ -162,6 +175,24 @@ class TestReadReport:
         f = tmp_path / "ragged.csv"
         f.write_text(HEADER + "\nHubei,Mainland China,2020-03-16T14:38:45,1,0\n")
         with pytest.raises(ValueError, match=":2: expected 6 fields, got 5"):
+            read_report(f)
+
+    def test_unclosed_quote(self, tmp_path):
+        f = tmp_path / "unclosed.csv"
+        f.write_text(HEADER + '\nHubei,Mainland China,2020-03-16T14:38:45,1,0,"0\n')
+        with pytest.raises(ValueError, match="malformed CSV"):
+            read_report(f)
+
+    def test_stray_quote_in_unquoted_field(self, tmp_path):
+        f = tmp_path / "stray.csv"
+        f.write_text(HEADER + '\nHubei,Mainland China,2020-03-16T14:38:45,"1"x,0,0\n')
+        with pytest.raises(ValueError, match=":2: malformed CSV"):
+            read_report(f)
+
+    def test_malformed_header(self, tmp_path):
+        f = tmp_path / "badhdr.csv"
+        f.write_text('"Province/State\n')
+        with pytest.raises(ValueError, match=":1: malformed CSV"):
             read_report(f)
 
     def test_blank_header_name(self, tmp_path):

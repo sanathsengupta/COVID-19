@@ -1,7 +1,7 @@
 """Data-integrity checks run against the real CSSE daily report files."""
 
 from collections import Counter
-from datetime import timedelta
+from datetime import date, timedelta
 
 import pytest
 
@@ -18,6 +18,11 @@ from validators import (
 )
 
 REPORT_FILES = daily_report_files()
+
+# First report in the series, and the latest report known to exist; newer
+# reports may be added, but the series must not start later or end earlier.
+FIRST_REPORT_DATE = date(2020, 1, 22)
+MIN_LATEST_REPORT_DATE = date(2020, 3, 16)
 
 
 def _ids(paths):
@@ -39,8 +44,14 @@ def test_no_unexpected_files():
     assert not unexpected, f"unexpected files in daily reports: {unexpected}"
 
 
+def test_report_series_endpoints():
+    dates = sorted(parse_filename_date(p.name) for p in REPORT_FILES)
+    assert dates[0] == FIRST_REPORT_DATE
+    assert dates[-1] >= MIN_LATEST_REPORT_DATE
+
+
 def test_report_dates_are_contiguous():
-    dates = [parse_filename_date(p.name) for p in REPORT_FILES]
+    dates = sorted(parse_filename_date(p.name) for p in REPORT_FILES)
     missing = []
     for prev, cur in zip(dates, dates[1:]):
         gap = prev + timedelta(days=1)
