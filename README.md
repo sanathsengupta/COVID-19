@@ -46,3 +46,16 @@ https://systems.jhu.edu/research/public-health/ncov/
 <b>Terms of Use:</b><br>
 
 This GitHub repo and its contents herein, including all data, mapping, and analysis, copyright 2020 Johns Hopkins University, all rights reserved, is provided to the public strictly for educational and academic research purposes.  The Website relies upon publicly available data from multiple sources, that do not always agree. The Johns Hopkins University hereby disclaims any and all representations and warranties with respect to the Website, including accuracy, fitness for use, and merchantability.  Reliance on the Website for medical guidance or use of the Website in commerce is strictly prohibited.
+
+<br>
+
+<b>Data validation tests:</b><br>
+
+The `tests/` directory contains a `pytest` suite that checks the integrity of the daily reports in `csse_covid_19_data/csse_covid_19_daily_reports/`: every file follows the `MM-DD-YYYY.csv` naming convention with no missing days, parses as CSV with a consistent number of fields, contains the required columns (Province/State, Country/Region, Last Update, Confirmed, Deaths, Recovered), has non-negative whole-number counts (blank means not reported), a non-blank Country/Region, a parseable Last Update no later than the report date, valid Latitude/Longitude when present, and no duplicate locations. The validation helpers themselves are unit-tested against synthetic edge cases (empty, malformed and boundary inputs).
+
+```
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+pytest                                           # run all tests
+pytest --cov=validators --cov-report=term-missing  # with coverage of the helpers
+```
